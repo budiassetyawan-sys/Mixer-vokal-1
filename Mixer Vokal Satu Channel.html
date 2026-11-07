@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mixer Vokal Satu Channel</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;600;700&display=swap">
+<style>
+:root{--bg:#eef0f3;--panel:#fff;--line:#d3d8df;--ink:#1b2430;--dim:#5d6877;--acc:#0d7f95;--warn:#c4710a;--rail:#cfd5dd;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10151c;--panel:#1a212b;--line:#2c3644;--ink:#e8e4da;--dim:#93a0b1;--acc:#4fc3d9;--warn:#f0a53a;--rail:#2c3644;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#10151c;--panel:#1a212b;--line:#2c3644;--ink:#e8e4da;--dim:#93a0b1;--acc:#4fc3d9;--warn:#f0a53a;--rail:#2c3644;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.4 "Barlow Semi Condensed",system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:14px 12px 40px}
+h1{font-size:22px;margin:4px 0 2px;font-weight:700}
+p.sub{margin:0 0 12px;color:var(--dim)}
+.bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+button,label.btn{font:600 14px "Barlow Semi Condensed",system-ui,sans-serif;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:9px 13px;cursor:pointer}
+button:focus-visible,input:focus-visible,label.btn:focus-within{outline:2px solid var(--acc);outline-offset:2px}
+button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+button.rec.on{background:#c0392b;border-color:#c0392b}
+.scope{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px;margin-bottom:12px}
+canvas{width:100%;height:110px;display:block}
+.meters{display:flex;gap:14px;font-size:13px;color:var(--dim);margin-top:6px;flex-wrap:wrap}
+.meters b{color:var(--ink);font-variant-numeric:tabular-nums}
+.gr b{color:var(--warn)}
+section{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px 12px;margin-bottom:12px}
+section h2{font-size:16px;margin:0 0 8px;font-weight:700}
+.pre{display:flex;flex-wrap:wrap;gap:6px}
+.eq{display:flex;justify-content:space-between;gap:4px}
+.fader{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;min-width:0}
+.fader input{writing-mode:vertical-lr;direction:rtl;height:130px;width:34px;accent-color:var(--acc)}
+.fader span{font-size:12px;color:var(--dim);text-align:center}
+.fader output{font-size:12px;font-variant-numeric:tabular-nums}
+.row{display:grid;grid-template-columns:1fr;gap:6px}
+.ctl{display:grid;grid-template-columns:96px 1fr 62px;align-items:center;gap:8px}
+.ctl label{color:var(--dim);font-size:14px}
+.ctl input{width:100%;accent-color:var(--acc)}
+.ctl output{text-align:right;font-variant-numeric:tabular-nums;font-size:13px}
+.note{font-size:13px;color:var(--dim);margin-top:8px}
+audio{width:100%;margin-bottom:12px}
+select{font:600 14px "Barlow Semi Condensed",system-ui,sans-serif;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px;width:100%}
+.hd{display:flex;align-items:center;gap:10px;margin-bottom:8px}.hd h2{margin:0}
+#msg{min-height:20px;color:var(--warn);font-size:14px;margin-bottom:8px}
+@media (min-width:620px){.row{grid-template-columns:1fr 1fr;column-gap:22px}}
+</style>
+</head>
+<body>
+<main>
+<h1>Mixer vokal satu channel</h1>
+<p class="sub">Sumber, EQ 5 band, kompresor, reverb, echo, dan limiter. Pakai headphone saat monitor mikrofon agar tidak berdengung.</p>
+
+<div class="bar">
+  <button id="bMic">Mikrofon</button>
+  <label class="btn">Buka file audio<input type="file" id="file" accept="audio/*" hidden></label>
+  <button id="bMon">Monitor: mati</button>
+  <button id="bRec" class="rec">Rekam hasil</button>
+  <button id="bTheme">Tema</button>
+</div>
+<div id="msg" role="status"></div>
+<audio id="player" controls hidden></audio>
+
+<div class="scope">
+  <canvas id="cv" width="720" height="220"></canvas>
+  <div class="meters">
+    <span>Puncak <b id="mPk">-∞</b> dB</span>
+    <span>RMS <b id="mRms">-∞</b> dB</span>
+    <span class="gr">Kompresor <b id="mGr">0.0</b> dB</span>
+    <span class="gr">Limiter <b id="mLim">0.0</b> dB</span>
+    <span class="gr">De-esser <b id="mDs">0.0</b> dB</span>
+    <span class="gr">Gate <b id="mGate">-</b></span>
+  </div>
+</div>
+
+<section><h2>Preset vokal</h2><div class="pre" id="presets"></div></section>
+<section><h2>Input</h2><div class="row" id="gIn"></div></section>
+<section><h2>Latensi dan buffer</h2>
+  <select id="latSel" aria-label="Mode buffer">
+    <option value="interactive">Terendah (interactive)</option>
+    <option value="0.02">Manual 20 ms</option>
+    <option value="0.05">Manual 50 ms</option>
+    <option value="balanced">Seimbang (balanced)</option>
+    <option value="0.1">Manual 100 ms</option>
+    <option value="playback">Paling stabil (playback)</option>
+  </select>
+  <p class="note" id="lat">Pilih mode lalu aktifkan sumber. Kalau suara pecah atau putus-putus, pilih mode yang lebih besar.</p></section>
+<section><div class="hd"><h2>Noise gate</h2><button id="gateOn">Gate: mati</button></div><div class="row" id="gGate"></div></section>
+<section><h2>Equalizer</h2><div class="eq" id="gEq"></div></section>
+<section><div class="hd"><h2>De-esser</h2><button id="dsOn">De-esser: mati</button></div><div class="row" id="gDs"></div></section>
+<section><h2>Kompresor</h2><div class="row" id="gComp"></div></section>
+<section><h2>Efek vokal</h2><div class="row" id="gFx"></div></section>
+<section><h2>Limiter dan output</h2><div class="row" id="gOut"></div>
+<p class="note">Limiter memakai kompresor rasio tinggi dengan attack sangat cepat. Ini mendekati limiter sungguhan, tetapi bukan true-peak limiter.</p></section>
+</main>
+
+<script>
+(function(){
+var ac, N = {}, srcNode = null, micStream = null, mode = null, monitorOn = false, recorder = null, chunks = [];
+var P = {}; // nilai parameter saat ini
+var $ = function(id){return document.getElementById(id)};
+function say(t){$('msg').textContent = t || ''}
+
+// ---------- definisi kontrol ----------
+var DEFS = {
+ gIn:[
+  ['gain','Gain input',-12,24,0.5,0,' dB'],
+  ['lowcut','Low cut',20,300,1,80,' Hz']],
+ gComp:[
+  ['cThr','Threshold',-60,0,1,-18,' dB'],
+  ['cRat','Rasio',1,20,0.5,3,':1'],
+  ['cAtk','Attack',1,100,1,10,' ms'],
+  ['cRel','Release',20,1000,10,160,' ms'],
+  ['cMk','Makeup',0,18,0.5,3,' dB']],
+ gFx:[
+  ['rvMix','Reverb mix',0,100,1,12,' %'],
+  ['rvSize','Ukuran ruang',0.3,4,0.1,1.6,' s'],
+  ['dlMix','Echo mix',0,100,1,0,' %'],
+  ['dlTime','Waktu echo',60,800,10,280,' ms'],
+  ['dlFb','Feedback',0,85,1,30,' %']],
+ gGate:[
+  ['gThr','Threshold',-80,-20,1,-50,' dB'],
+  ['gHold','Hold',0,500,10,80,' ms'],
+  ['gRel','Release',20,800,10,150,' ms'],
+  ['gFloor','Redam hingga',-80,-6,1,-40,' dB']],
+ gDs:[
+  ['dsFreq','Frekuensi',3000,10000,100,6500,' Hz'],
+  ['dsThr','Threshold',-60,0,1,-30,' dB'],
+  ['dsAmt','Kekuatan',1,12,0.5,6,':1']],
+ gOut:[
+  ['limThr','Limiter ceiling',-20,0,0.5,-2,' dB'],
+  ['limRel','Limiter release',10,500,10,80,' ms'],
+  ['outG','Level output',-24,6,0.5,0,' dB']]
+};
+var EQ = [['e0','100 Hz','lowshelf',100],['e1','300 Hz','peaking',300],['e2','1 kHz','peaking',1000],['e3','3.5 kHz','peaking',3500],['e4','10 kHz','highshelf',10000]];
+
+function mkCtl(host, d){
+  var w = document.createElement('div'); w.className = 'ctl';
+  w.innerHTML = '<label for="'+d[0]+'">'+d[1]+'</label><input type="range" id="'+d[0]+'" min="'+d[2]+'" max="'+d[3]+'" step="'+d[4]+'" value="'+d[5]+'"><output id="o_'+d[0]+'"></output>';
+  $(host).appendChild(w);
+  P[d[0]] = d[5];
+  $(d[0]).addEventListener('input', function(){ P[d[0]] = parseFloat(this.value); show(d[0], d[6]); apply(); });
+  show(d[0], d[6]);
+}
+function show(id, unit){ $('o_'+id).textContent = P[id] + (unit||''); }
+var UNITS = {};
+Object.keys(DEFS).forEach(function(h){ DEFS[h].forEach(function(d){ mkCtl(h, d); UNITS[d[0]] = d[6]; }); });
+EQ.forEach(function(b){
+  var w = document.createElement('div'); w.className = 'fader';
+  w.innerHTML = '<output id="o_'+b[0]+'"></output><input type="range" id="'+b[0]+'" min="-15" max="15" step="0.5" value="0" aria-label="EQ '+b[1]+'"><span>'+b[1]+'</span>';
+  $('gEq').appendChild(w); P[b[0]] = 0; UNITS[b[0]] = ' dB';
+  $(b[0]).addEventListener('input', function(){ P[b[0]] = parseFloat(this.value); show(b[0], ' dB'); apply(); });
+  show(b[0], ' dB');
+});
+
+// tombol nyala/mati
+P.gateOn = 0; P.dsOn = 0;
+function setTog(id, v){
+  P[id] = v ? 1 : 0; var b = $(id); b.classList.toggle('on', !!P[id]);
+  b.textContent = (id === 'gateOn' ? 'Gate' : 'De-esser') + ': ' + (P[id] ? 'nyala' : 'mati'); apply();
+}
+$('gateOn').addEventListener('click', function(){ setTog('gateOn', !P.gateOn); });
+$('dsOn').addEventListener('click', function(){ setTog('dsOn', !P.dsOn); });
+
+// ---------- preset ----------
+var PRESETS = {
+ 'Datar':{gateOn:0,dsOn:0,gain:0,lowcut:20,e0:0,e1:0,e2:0,e3:0,e4:0,cThr:0,cRat:1,cMk:0,rvMix:0,dlMix:0,limThr:-1},
+ 'Vokal pop':{gateOn:0,dsOn:1,dsFreq:7000,dsThr:-30,dsAmt:4,gain:2,lowcut:90,e0:-2,e1:-2.5,e2:1,e3:3,e4:4,cThr:-22,cRat:4,cAtk:8,cRel:140,cMk:5,rvMix:16,rvSize:1.8,dlMix:8,dlTime:300,dlFb:28,limThr:-1.5},
+ 'Podcast':{gateOn:1,gThr:-50,gHold:100,gRel:200,gFloor:-40,dsOn:1,dsFreq:6500,dsThr:-32,dsAmt:5,gain:3,lowcut:100,e0:2,e1:-1.5,e2:1.5,e3:2.5,e4:1,cThr:-24,cRat:4,cAtk:6,cRel:180,cMk:6,rvMix:0,dlMix:0,limThr:-2},
+ 'Radio':{gain:2,lowcut:130,e0:3,e1:-1,e2:2,e3:4,e4:2,cThr:-26,cRat:6,cAtk:4,cRel:120,cMk:7,rvMix:4,rvSize:0.6,dlMix:0,limThr:-1},
+ 'Rap':{gain:2,lowcut:80,e0:1,e1:-3,e2:1,e3:3.5,e4:3,cThr:-24,cRat:5,cAtk:5,cRel:110,cMk:6,rvMix:6,rvSize:0.9,dlMix:14,dlTime:210,dlFb:35,limThr:-1.5},
+ 'Ruang besar':{gain:1,lowcut:100,e0:-1,e1:-2,e2:0,e3:2,e4:3,cThr:-20,cRat:3,cMk:3,rvMix:38,rvSize:3.2,dlMix:12,dlTime:420,dlFb:40,limThr:-2}
+};
+Object.keys(PRESETS).forEach(function(n){
+  var b = document.createElement('button'); b.textContent = n;
+  b.addEventListener('click', function(){
+    var p = PRESETS[n];
+    Object.keys(p).forEach(function(k){
+      if(k === 'gateOn' || k === 'dsOn'){ setTog(k, p[k]); return; }
+      P[k] = p[k]; $(k).value = p[k]; show(k, UNITS[k]);
+    });
+    apply(); say('Preset ' + n + ' dipakai.');
+  });
+  $('presets').appendChild(b);
+});
+
+// ---------- grafik audio ----------
+function makeIR(sec, ctx){
+  var len = Math.floor(ctx.sampleRate * sec), buf = ctx.createBuffer(2, len, ctx.sampleRate);
+  for(var c=0;c<2;c++){ var d = buf.getChannelData(c);
+    for(var i=0;i<len;i++){ d[i] = (Math.random()*2-1) * Math.pow(1 - i/len, 2.6); } }
+  return buf;
+}
+var irSize = 0;
+function build(){
+  if(ac) return;
+  var lh = $('latSel').value; if(lh !== 'interactive' && lh !== 'balanced' && lh !== 'playback') lh = parseFloat(lh);
+  ac = new (window.AudioContext || window.webkitAudioContext)({latencyHint: lh});
+  N.inG = ac.createGain();
+  N.hp = ac.createBiquadFilter(); N.hp.type = 'highpass'; N.hp.Q.value = 0.707;
+  N.eq = EQ.map(function(b){ var f = ac.createBiquadFilter(); f.type = b[2]; f.frequency.value = b[3]; f.Q.value = 1; return f; });
+  N.comp = ac.createDynamicsCompressor(); N.comp.knee.value = 6;
+  N.mk = ac.createGain();
+  N.rvSend = ac.createGain(); N.conv = ac.createConvolver(); N.rvRet = ac.createGain();
+  N.dlSend = ac.createGain(); N.dl = ac.createDelay(1.5); N.dlFb = ac.createGain(); N.dlRet = ac.createGain();
+  N.sum = ac.createGain();
+  N.lim = ac.createDynamicsCompressor(); N.lim.knee.value = 0; N.lim.ratio.value = 20; N.lim.attack.value = 0.001;
+  N.out = ac.createGain();
+  N.mon = ac.createGain(); N.mon.gain.value = 0;
+  N.an = ac.createAnalyser(); N.an.fftSize = 2048; N.an.smoothingTimeConstant = 0.8;
+  N.rec = ac.createMediaStreamDestination();
+  // rantai utama
+  N.inG.connect(N.hp);
+  // noise gate (gain dikendalikan oleh pembaca level di bawah)
+  N.gate = ac.createGain(); N.gTap = ac.createAnalyser(); N.gTap.fftSize = 512;
+  N.hp.connect(N.gTap); N.hp.connect(N.gate);
+  var prev = N.gate; N.eq.forEach(function(f){ prev.connect(f); prev = f; });
+  // de-esser: pisah band di frekuensi sibilan, kompres hanya band atas
+  N.dsIn = ac.createGain(); N.dsByp = ac.createGain(); N.dsOut = ac.createGain(); N.dsWet = ac.createGain();
+  N.dsLp = ac.createBiquadFilter(); N.dsLp.type = 'lowpass'; N.dsLp.Q.value = 0.5;
+  N.dsHp = ac.createBiquadFilter(); N.dsHp.type = 'highpass'; N.dsHp.Q.value = 0.5;
+  N.dsC = ac.createDynamicsCompressor(); N.dsC.knee.value = 3; N.dsC.attack.value = 0.002; N.dsC.release.value = 0.06;
+  N.dsInv = ac.createGain(); N.dsInv.gain.value = -1;
+  prev.connect(N.dsIn); N.dsIn.connect(N.dsByp); N.dsByp.connect(N.dsOut);
+  N.dsIn.connect(N.dsLp); N.dsLp.connect(N.dsWet);
+  N.dsIn.connect(N.dsHp); N.dsHp.connect(N.dsC); N.dsC.connect(N.dsInv); N.dsInv.connect(N.dsWet);
+  N.dsWet.connect(N.dsOut);
+  N.dsOut.connect(N.comp); N.comp.connect(N.mk);
+  N.mk.connect(N.sum);
+  N.mk.connect(N.rvSend); N.rvSend.connect(N.conv); N.conv.connect(N.rvRet); N.rvRet.connect(N.sum);
+  N.mk.connect(N.dlSend); N.dlSend.connect(N.dl); N.dl.connect(N.dlFb); N.dlFb.connect(N.dl); N.dl.connect(N.dlRet); N.dlRet.connect(N.sum);
+  N.sum.connect(N.lim); N.lim.connect(N.out);
+  N.out.connect(N.an); N.out.connect(N.rec); N.out.connect(N.mon); N.mon.connect(ac.destination);
+  irSize = 0; apply(); info();
+}
+function apply(){
+  if(!ac) return;
+  var t = ac.currentTime, s = 0.02;
+  var db = function(v){ return Math.pow(10, v/20); };
+  N.inG.gain.setTargetAtTime(db(P.gain), t, s);
+  N.hp.frequency.setTargetAtTime(P.lowcut, t, s);
+  EQ.forEach(function(b,i){ N.eq[i].gain.setTargetAtTime(P[b[0]], t, s); });
+  N.comp.threshold.setTargetAtTime(P.cThr, t, s); N.comp.ratio.setTargetAtTime(P.cRat, t, s);
+  N.comp.attack.setTargetAtTime(P.cAtk/1000, t, s); N.comp.release.setTargetAtTime(P.cRel/1000, t, s);
+  N.mk.gain.setTargetAtTime(db(P.cMk), t, s);
+  N.rvSend.gain.setTargetAtTime(P.rvMix/100, t, s); N.rvRet.gain.value = 1;
+  if(P.rvSize !== irSize){ irSize = P.rvSize; N.conv.buffer = makeIR(P.rvSize, ac); }
+  N.dl.delayTime.setTargetAtTime(P.dlTime/1000, t, s);
+  N.dlSend.gain.setTargetAtTime(P.dlMix/100, t, s); N.dlFb.gain.setTargetAtTime(P.dlFb/100, t, s); N.dlRet.gain.value = 1;
+  N.lim.threshold.setTargetAtTime(P.limThr, t, s); N.lim.release.setTargetAtTime(P.limRel/1000, t, s);
+  N.out.gain.setTargetAtTime(db(P.outG), t, s);
+  N.dsLp.frequency.setTargetAtTime(P.dsFreq, t, s); N.dsHp.frequency.setTargetAtTime(P.dsFreq, t, s);
+  N.dsC.threshold.setTargetAtTime(P.dsThr, t, s); N.dsC.ratio.setTargetAtTime(P.dsAmt, t, s);
+  N.dsByp.gain.setTargetAtTime(P.dsOn ? 0 : 1, t, s); N.dsWet.gain.setTargetAtTime(P.dsOn ? 1 : 0, t, s);
+  N.mon.gain.setTargetAtTime((mode === 'file' || monitorOn) ? 1 : 0, t, s);
+}
+function setSrc(node, m){
+  build();
+  if(ac.state === 'suspended') ac.resume();
+  if(srcNode){ try{ srcNode.disconnect(); }catch(e){} }
+  srcNode = node; mode = m; node.connect(N.inG); apply();
+}
+
+function info(){
+  var b = ac.baseLatency || 0, o = ac.outputLatency || 0;
+  $('lat').textContent = 'Sample rate ' + ac.sampleRate + ' Hz. Latensi dasar sekitar ' + (b*1000).toFixed(1) + ' ms, output sekitar ' + (o*1000).toFixed(1) + ' ms' + (o ? '' : ' (tidak dilaporkan perangkat)') + '. Total mikrofon ke telinga biasanya lebih besar, terutama dengan headphone Bluetooth.';
+}
+$('latSel').addEventListener('change', function(){
+  if(!ac){ say('Mode buffer dipakai saat sumber pertama diaktifkan.'); return; }
+  if(recorder && recorder.state === 'recording') recorder.stop();
+  var wasMode = mode, a = $('player'), t = a.currentTime, playing = !a.paused;
+  a.pause(); try{ srcNode.disconnect(); }catch(e){}
+  ac.close(); ac = null; N = {}; srcNode = null; mediaSrc = null; build();
+  if(wasMode === 'mic' && micStream){ setSrc(ac.createMediaStreamSource(micStream), 'mic'); }
+  else if(wasMode === 'file'){
+    var c = a.cloneNode(); c.hidden = false; a.parentNode.replaceChild(c, a); c.currentTime = t;
+    mediaSrc = ac.createMediaElementSource(c); setSrc(mediaSrc, 'file'); if(playing) c.play().catch(function(){});
+  }
+  say('Mode buffer diganti. Konteks audio dibuat ulang.');
+});
+
+// ---------- sumber ----------
+$('bMic').addEventListener('click', function(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ say('Browser ini tidak mendukung akses mikrofon.'); return; }
+  navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}}).then(function(st){
+    micStream = st; build();
+    setSrc(ac.createMediaStreamSource(st), 'mic');
+    $('bMic').classList.add('on'); say('Mikrofon aktif. Nyalakan Monitor untuk mendengar hasilnya lewat headphone.');
+    start();
+  }).catch(function(){ say('Mikrofon tidak bisa diakses. Izinkan akses mikrofon di browser, lalu coba lagi.'); });
+});
+var mediaSrc = null;
+$('file').addEventListener('change', function(e){
+  var f = e.target.files[0]; if(!f) return;
+  var a = $('player'); a.src = URL.createObjectURL(f); a.hidden = false;
+  build();
+  if(!mediaSrc) mediaSrc = ac.createMediaElementSource(a);
+  setSrc(mediaSrc, 'file'); $('bMic').classList.remove('on');
+  a.play().catch(function(){}); say('File dimuat: ' + f.name); start();
+});
+$('bMon').addEventListener('click', function(){
+  monitorOn = !monitorOn; this.classList.toggle('on', monitorOn);
+  this.textContent = 'Monitor: ' + (monitorOn ? 'nyala' : 'mati'); apply();
+  if(monitorOn && mode === 'mic') say('Gunakan headphone agar tidak terjadi feedback.');
+});
+$('bTheme').addEventListener('click', function(){
+  var r = document.documentElement, dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  var cur = r.getAttribute('data-theme') || (dark ? 'dark' : 'light');
+  r.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+});
+
+// ---------- rekam hasil ----------
+$('bRec').addEventListener('click', function(){
+  if(!ac || !srcNode){ say('Pilih sumber dulu (mikrofon atau file audio).'); return; }
+  var b = this;
+  if(recorder && recorder.state === 'recording'){ recorder.stop(); return; }
+  if(!window.MediaRecorder){ say('Browser ini belum mendukung perekaman.'); return; }
+  chunks = []; recorder = new MediaRecorder(N.rec.stream);
+  recorder.ondataavailable = function(e){ if(e.data.size) chunks.push(e.data); };
+  recorder.onstop = function(){
+    b.classList.remove('on'); b.textContent = 'Rekam hasil';
+    var blob = new Blob(chunks, {type: recorder.mimeType || 'audio/webm'});
+    var ext = (blob.type.indexOf('ogg') > -1) ? 'ogg' : (blob.type.indexOf('mp4') > -1 ? 'm4a' : 'webm');
+    var url = URL.createObjectURL(blob);
+    $('msg').innerHTML = 'Rekaman selesai. <a href="'+url+'" download="hasil-mixer.'+ext+'" style="color:var(--acc)">Unduh hasil (.'+ext+')</a>';
+  };
+  recorder.start(); b.classList.add('on'); b.textContent = 'Berhenti rekam'; say('Merekam hasil setelah efek…');
+});
+
+// ---------- noise gate (dibaca tiap 8 ms) ----------
+var gBuf = new Float32Array(512), gOpen = true, gUntil = 0;
+setInterval(function(){
+  if(!ac || !N.gate) return;
+  var t = ac.currentTime;
+  if(!P.gateOn){ N.gate.gain.setTargetAtTime(1, t, 0.01); gOpen = true; $('mGate').textContent = '-'; return; }
+  N.gTap.getFloatTimeDomainData(gBuf);
+  var sq = 0; for(var i=0;i<512;i++) sq += gBuf[i]*gBuf[i];
+  var d = 10*Math.log10(sq/512 + 1e-12), now = performance.now();
+  if(d > P.gThr){ gOpen = true; gUntil = now + P.gHold; }
+  else if(gOpen && now > gUntil && d < P.gThr - 3){ gOpen = false; }
+  N.gate.gain.setTargetAtTime(gOpen ? 1 : Math.pow(10, P.gFloor/20), t, gOpen ? 0.004 : Math.max(0.01, P.gRel/3000));
+  $('mGate').textContent = gOpen ? 'terbuka' : 'tertutup';
+}, 8);
+
+// ---------- meter dan spektrum ----------
+var cv = $('cv'), cx = cv.getContext('2d'), running = false;
+function css(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function fmt(v){ return isFinite(v) && v > -90 ? v.toFixed(1) : '-∞'; }
+function start(){ if(!running){ running = true; draw(); } }
+function draw(){
+  requestAnimationFrame(draw);
+  if(!ac) return;
+  var W = cv.width, H = cv.height, n = N.an.fftSize;
+  var td = new Float32Array(n), fd = new Uint8Array(N.an.frequencyBinCount);
+  N.an.getFloatTimeDomainData(td); N.an.getByteFrequencyData(fd);
+  var pk = 0, sq = 0; for(var i=0;i<n;i++){ var a = Math.abs(td[i]); if(a>pk) pk = a; sq += td[i]*td[i]; }
+  $('mPk').textContent = fmt(20*Math.log10(pk)); $('mRms').textContent = fmt(10*Math.log10(sq/n));
+  $('mGr').textContent = N.comp.reduction.toFixed(1); $('mLim').textContent = N.lim.reduction.toFixed(1); $('mDs').textContent = N.dsC.reduction.toFixed(1);
+  cx.clearRect(0,0,W,H);
+  cx.fillStyle = css('--acc'); cx.globalAlpha = 0.85;
+  var bars = 96, nyq = ac.sampleRate/2, bw = W/bars;
+  for(var b=0;b<bars;b++){
+    var f0 = 30*Math.pow(nyq/30*0.8, b/bars), f1 = 30*Math.pow(nyq/30*0.8, (b+1)/bars);
+    var i0 = Math.floor(f0/nyq*fd.length), i1 = Math.max(i0+1, Math.floor(f1/nyq*fd.length)), m = 0;
+    for(var k=i0;k<i1;k++){ if(fd[k]>m) m = fd[k]; }
+    var h = m/255*(H-14); cx.fillRect(b*bw+1, H-14-h, bw-2, h);
+  }
+  cx.globalAlpha = 1;
+  // bar level puncak
+  var lv = Math.max(0, Math.min(1, (20*Math.log10(pk+1e-9)+60)/60));
+  cx.fillStyle = css('--line'); cx.fillRect(0, H-10, W, 8);
+  cx.fillStyle = lv > 0.93 ? '#c0392b' : css('--warn'); cx.fillRect(0, H-10, W*lv, 8);
+}
+})();
+</script>
+</body>
+</html>
